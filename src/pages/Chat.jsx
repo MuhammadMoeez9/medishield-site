@@ -5,16 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Image as ImageIcon, Bot, User } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  image?: string;
-}
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Chat = () => {
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState([
     {
       id: "1",
       role: "assistant",
@@ -22,13 +17,15 @@ const Chat = () => {
     },
   ]);
   const [input, setInput] = useState("");
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef(null);
+  const { toast } = useToast();
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() && !selectedImage) return;
 
-    const newMessage: Message = {
+    const newMessage = {
       id: Date.now().toString(),
       role: "user",
       content: input,
@@ -38,30 +35,51 @@ const Chat = () => {
     setMessages([...messages, newMessage]);
     setInput("");
     setSelectedImage(null);
+    setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse: Message = {
+    try {
+      const { data, error } = await supabase.functions.invoke("chat-gemini", {
+        body: {
+          messages: [...messages, newMessage].map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
+        },
+      });
+
+      if (error) throw error;
+
+      const aiResponse = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "Thank you for your message. Our medical team will review your inquiry and provide guidance shortly.",
+        content: data.choices[0].message.content,
       };
+
       setMessages((prev) => [...prev, aiResponse]);
-    }, 1000);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast({
+        title: "Error",
+        description: "Failed to get response. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
+        setSelectedImage(reader.result);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -119,6 +137,16 @@ const Chat = () => {
                   )}
                 </div>
               ))}
+              {isLoading && (
+                <div className="flex gap-3 justify-start">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="bg-muted rounded-lg p-4">
+                    <p className="text-sm">Thinking...</p>
+                  </div>
+                </div>
+              )}
             </div>
           </ScrollArea>
 
@@ -165,9 +193,10 @@ const Chat = () => {
                 onKeyPress={handleKeyPress}
                 placeholder="Type your message..."
                 className="flex-1"
+                disabled={isLoading}
               />
 
-              <Button onClick={handleSend} size="icon">
+              <Button onClick={handleSend} size="icon" disabled={isLoading}>
                 <Send className="h-5 w-5" />
               </Button>
             </div>
