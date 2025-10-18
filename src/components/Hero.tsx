@@ -1,9 +1,12 @@
 import { Phone, Clock, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hospital-hero.jpg";
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <section id="home" className="relative min-h-screen flex items-center pt-16">
       {/* Background Image */}
@@ -32,8 +35,8 @@ const Hero = () => {
             <Button size="lg" className="text-lg">
               Book Appointment
             </Button>
-            <Button size="lg" variant="outline" className="text-lg">
-              Our Services
+            <Button size="lg" variant="outline" className="text-lg" onClick={() => navigate("/chat")}>
+              Chat Now
             </Button>
           </div>
 
